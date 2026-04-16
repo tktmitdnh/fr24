@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FR24 Fleet Timeline Public</title>
+  <style>
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 8px;
+      font-size: 12px;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    #controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    #controls label { white-space: nowrap; }
+    #status-bar {
+      margin-bottom: 8px;
+      padding: 6px 8px;
+      border: 1px solid #d8dee8;
+      background: #ffffff;
+      color: #334155;
+      font-size: 12px;
+    }
+    .type-dropdown {
+      position: relative;
+      display: inline-block;
+      min-width: 220px;
+    }
+    #typeDropdownBtn {
+      min-width: 220px;
+      height: 28px;
+      padding: 4px 10px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      text-align: left;
+      cursor: pointer;
+    }
+    #typePanel {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      z-index: 50;
+      display: none;
+      width: 380px;
+      max-height: 320px;
+      overflow-y: auto;
+      border: 1px solid #d7dce3;
+      background: #fbfcfe;
+      padding: 8px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+    }
+    #typePanel.open { display: block; }
+    .type-actions {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      margin-bottom: 8px;
+      position: sticky;
+      top: 0;
+      background: #fbfcfe;
+      padding-bottom: 6px;
+    }
+    .type-actions button {
+      font-size: 11px;
+      padding: 2px 6px;
+      cursor: pointer;
+    }
+    #typeList {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 10px;
+      align-items: start;
+    }
+    .type-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    #timeline-container {
+      border: 1px solid #ccc;
+      overflow-y: auto;
+      height: 800px;
+      position: relative;
+      background: #fff;
+    }
+    #timeline-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: #f8f8f8;
+      display: grid;
+      grid-template-columns: 110px 160px 1fr;
+      border-bottom: 1px solid #ddd;
+    }
+    .th {
+      padding: 4px;
+      border-right: 1px solid #ddd;
+      text-align: center;
+      font-weight: normal;
+    }
+    #timeline-header-right { position: relative; padding: 4px 0; }
+    #time-scale { position: relative; height: 24px; }
+    .time-label {
+      position: absolute;
+      top: 0;
+      font-size: 10px;
+      color: #555;
+      transform: translateX(-50%);
+      white-space: nowrap;
+    }
+    .time-grid-line {
+      position: absolute;
+      top: 24px;
+      bottom: 0;
+      width: 1px;
+      background: #f0f0f0;
+    }
+    .time-grid-line-hour { background: #e0e0e0; }
+    #timeline-body { display: grid; grid-template-columns: 110px 160px 1fr; }
+    .reg-label, .info-cell {
+      border-right: 1px solid #eee;
+      border-bottom: 1px solid #f3f3f3;
+      padding: 2px 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background-color: #fff;
+      min-height: 20px;
+    }
+    .info-cell {
+      color: #475569;
+      font-size: 11px;
+    }
+    .reg-row {
+      position: relative;
+      border-bottom: 1px solid #f3f3f3;
+      min-height: 20px;
+      background-color: #fff;
+    }
+    .flight-bar, .taxi-bar {
+      position: absolute;
+      top: 3px;
+      height: 14px;
+      border-radius: 0;
+      font-size: 10px;
+      line-height: 14px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    .flight-bar-label {
+      padding: 0 4px;
+      color: #fff;
+      text-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+      pointer-events: none;
+    }
+    .taxi-bar {
+      opacity: 0.35;
+      z-index: 5;
+      background-image: repeating-linear-gradient(
+        45deg,
+        rgba(0,0,0,0.35),
+        rgba(0,0,0,0.35) 2px,
+        rgba(0,0,0,0.0) 2px,
+        rgba(0,0,0,0.0) 6px
+      );
+      background-size: 10px 10px;
+      border: 1px solid rgba(0,0,0,0.15);
+    }
+    .flight-bar { z-index: 10; }
+    .long-delay { outline: 2px solid #dc2626; }
+    #details-panel {
+      margin-top: 8px;
+      padding: 6px;
+      border: 1px solid #ddd;
+      background: #fafafa;
+      font-size: 12px;
+      min-height: 40px;
+      white-space: pre-line;
+    }
+    .muted {
+      color: #64748b;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <label>
+      Date:
+      <input type="date" id="dateInput" />
+    </label>
+
+    <label>
+      Airline:
+      <select id="airlineSelect">
+        <option value="ALL">(All)</option>
+        <option value="NH">ANA (NH)</option>
+        <option value="JL">JAL (JL)</option>
+        <option value="BC">Skymark (BC)</option>
+        <option value="HD">Air Do (HD)</option>
+        <option value="6J">Solaseed (6J)</option>
+        <option value="MM">Peach (MM)</option>
+        <option value="GK">Jetstar Japan (GK)</option>
+      </select>
+    </label>
+
+    <div class="type-dropdown">
+      <div>Type:</div>
+      <button type="button" id="typeDropdownBtn">All types</button>
+      <div id="typePanel">
+        <div class="type-actions">
+          <button type="button" id="typeAllBtn">All</button>
+          <button type="button" id="typeNoneBtn">None</button>
+        </div>
+        <div id="typeList"></div>
+      </div>
+    </div>
+
+    <label>
+      <input type="checkbox" id="scopeDomestic" checked />
+      Domestic
+    </label>
+
+    <label>
+      <input type="checkbox" id="scopeInternational" checked />
+      International
+    </label>
+
+    <label>
+      Sort:
+      <select id="sortSelect">
+        <option value="reg">Reg</option>
+        <option value="airline_reg">Airline / Reg</option>
+        <option value="type_reg">Type / Reg</option>
+      </select>
+    </label>
+
+    <label>
+      Airport (IATA):
+      <input type="text" id="airportInput" size="4" placeholder="HND" />
+    </label>
+
+    <label>
+      Reg:
+      <input type="text" id="regInput" size="8" placeholder="JA742A" />
+    </label>
+
+    <label>
+      Flight:
+      <input type="text" id="flightInput" size="8" placeholder="NH865" />
+    </label>
+
+    <label title="Public site is a nightly snapshot. Live mode is not available here.">
+      <input type="checkbox" id="withLive" checked disabled />
+      Include last 24h live data
+    </label>
+
+    <label>
+      <input type="checkbox" id="withSchedule" checked />
+      Show schedule (STD/STA)
+    </label>
+
+    <button id="reloadBtn">Reload</button>
+  </div>
+
+  <div id="status-bar">Public data status: loading...</div>
+
+  <div id="timeline-container">
+    <div id="timeline-header">
+      <div class="th">Reg</div>
+      <div class="th">Info</div>
+      <div id="timeline-header-right">
+        <div id="time-scale"></div>
+      </div>
+    </div>
+    <div id="timeline-body"></div>
+  </div>
+
+  <div id="error" style="margin-top:6px;color:#b91c1c;font-weight:600;"></div>
+  <div class="muted" style="margin-top:6px;">Public view is rebuilt nightly at 23:30 JST from internal cumulative data.</div>
+  <div id="details-panel">Flight details will appear here when you click a bar.</div>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
